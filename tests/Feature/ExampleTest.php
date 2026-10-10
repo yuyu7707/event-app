@@ -1,7 +1,7 @@
 <?php
 
-test('returns a successful response', function () {
+test('home redirects to the event list', function () {
     $response = $this->get(route('home'));
 
-    $response->assertOk();
+    $response->assertRedirect(route('events.index'));
 });

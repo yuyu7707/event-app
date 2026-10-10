@@ -158,3 +158,59 @@ test('deleting an event also deletes its ticket types', function () {
 
     $this->assertModelMissing($ticketType);
 });
+
+test('ticket type accepts values exactly at the lower and upper limits', function () {
+    $event = Event::factory()->create();
+    $this->actingAs($event->user);
+
+    $component = Livewire::test('pages::events.edit', ['event' => $event])
+        ->set('ticketName', str_repeat('あ', 50))
+        ->set('ticketPrice', '0')
+        ->set('ticketCapacity', '1')
+        ->call('addTicketType')
+        ->assertHasNoErrors();
+
+    $component
+        ->set('ticketName', '上限')
+        ->set('ticketPrice', '1000000')
+        ->set('ticketCapacity', '100000')
+        ->call('addTicketType')
+        ->assertHasNoErrors();
+
+    expect($event->ticketTypes()->count())->toBe(2);
+});
+
+test('ticket type rejects a price and a capacity over the maximum', function () {
+    $event = Event::factory()->create();
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->set('ticketName', '一般')
+        ->set('ticketPrice', '1000001')
+        ->set('ticketCapacity', '100001')
+        ->call('addTicketType')
+        ->assertHasErrors(['ticketPrice' => 'max', 'ticketCapacity' => 'max']);
+
+    expect($event->ticketTypes()->count())->toBe(0);
+});
+
+test('ticket type rejects non-integer price and capacity', function () {
+    $event = Event::factory()->create();
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->set('ticketName', '一般')
+        ->set('ticketPrice', 'abc')
+        ->set('ticketCapacity', '1.5')
+        ->call('addTicketType')
+        ->assertHasErrors(['ticketPrice' => 'integer', 'ticketCapacity' => 'integer']);
+
+    expect($event->ticketTypes()->count())->toBe(0);
+});
+
+test('unverified users cannot open the edit page of their own event', function () {
+    $event = Event::factory()->for(User::factory()->unverified())->create();
+    $this->actingAs($event->user);
+
+    $this->get(route('events.edit', $event))->assertRedirect(route('verification.notice'));
+});
