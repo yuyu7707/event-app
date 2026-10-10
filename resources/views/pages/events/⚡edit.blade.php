@@ -93,6 +93,17 @@ new #[Title('イベントを編集')] class extends Component {
         Flux::toast(variant: 'success', text: '券種を追加しました。');
     }
 
+    public function deleteTicketType(int $ticketTypeId): void
+    {
+        $this->authorize('update', $this->event);
+
+        $this->event->ticketTypes()->findOrFail($ticketTypeId)->delete();
+
+        unset($this->ticketTypes);
+
+        Flux::toast(variant: 'success', text: '券種を削除しました。');
+    }
+
     public function delete(): void
     {
         $this->authorize('update', $this->event);
@@ -143,6 +154,7 @@ new #[Title('イベントを編集')] class extends Component {
                             <th class="px-4 py-2 font-medium">券種名</th>
                             <th class="px-4 py-2 text-right font-medium">価格</th>
                             <th class="px-4 py-2 text-right font-medium">定員</th>
+                            <th class="px-4 py-2"></th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -151,6 +163,9 @@ new #[Title('イベントを編集')] class extends Component {
                                 <td class="px-4 py-2">{{ $ticketType->name }}</td>
                                 <td class="px-4 py-2 text-right">{{ number_format($ticketType->price) }}円</td>
                                 <td class="px-4 py-2 text-right">{{ number_format($ticketType->capacity) }}人</td>
+                                <td class="px-4 py-2 text-right">
+                                    <flux:button wire:click="deleteTicketType({{ $ticketType->id }})" wire:confirm="この券種を削除しますか？" size="sm" variant="danger" icon="trash">削除</flux:button>
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>

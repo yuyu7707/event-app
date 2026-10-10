@@ -56,6 +56,101 @@ test('ticket type requires a name and a capacity of at least 1', function () {
     expect($event->ticketTypes()->count())->toBe(0);
 });
 
+test('ticket type rejects a negative price and a name over 50 characters', function () {
+    $event = Event::factory()->create();
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->set('ticketName', str_repeat('あ', 51))
+        ->set('ticketPrice', '-1')
+        ->set('ticketCapacity', '10')
+        ->call('addTicketType')
+        ->assertHasErrors(['ticketName' => 'max', 'ticketPrice' => 'min']);
+
+    expect($event->ticketTypes()->count())->toBe(0);
+});
+
+test('organizer can delete a ticket type', function () {
+    $ticketType = TicketType::factory()->create();
+    $this->actingAs($ticketType->event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $ticketType->event])
+        ->call('deleteTicketType', $ticketType->id);
+
+    $this->assertModelMissing($ticketType);
+});
+
+test('other users cannot delete a ticket type', function () {
+    $ticketType = TicketType::factory()->create();
+    $this->actingAs($ticketType->event->user);
+
+    $component = Livewire::test('pages::events.edit', ['event' => $ticketType->event]);
+
+    $this->actingAs(User::factory()->create());
+
+    $component->call('deleteTicketType', $ticketType->id)->assertForbidden();
+
+    $this->assertModelExists($ticketType);
+});
+
+test('other users cannot add a ticket type', function () {
+    $event = Event::factory()->create();
+    $this->actingAs($event->user);
+
+    $component = Livewire::test('pages::events.edit', ['event' => $event]);
+
+    $this->actingAs(User::factory()->create());
+
+    $component
+        ->set('ticketName', '一般')
+        ->set('ticketPrice', '3000')
+        ->set('ticketCapacity', '50')
+        ->call('addTicketType')
+        ->assertForbidden();
+
+    expect($event->ticketTypes()->count())->toBe(0);
+});
+
+test('guests cannot open the edit page', function () {
+    $event = Event::factory()->create();
+
+    $this->get(route('events.edit', $event))->assertRedirect(route('login'));
+});
+
+test('a ticket type of another event cannot be deleted', function () {
+    $event = Event::factory()->create();
+    $otherTicketType = TicketType::factory()->create();
+    $this->actingAs($event->user);
+
+    Livewire::test('pages::events.edit', ['event' => $event])
+        ->call('deleteTicketType', $otherTicketType->id)
+        ->assertNotFound();
+
+    $this->assertModelExists($otherTicketType);
+});
+
+test('event list shows the lowest ticket price', function () {
+    $event = Event::factory()->create();
+    TicketType::factory()->for($event)->create(['price' => 3000]);
+    TicketType::factory()->for($event)->create(['price' => 1500]);
+
+    $this->get(route('events.index'))->assertOk()->assertSee('1,500円〜');
+});
+
+test('event list shows 無料 when the lowest price is 0', function () {
+    $event = Event::factory()->create();
+    TicketType::factory()->for($event)->create(['price' => 0]);
+    TicketType::factory()->for($event)->create(['price' => 2000]);
+
+    $this->get(route('events.index'))->assertOk()->assertSee('無料')->assertDontSee('円〜');
+});
+
+test('event list shows ─ when there are no ticket types', function () {
+    Event::factory()->create();
+
+    $this->get(route('events.index'))->assertOk()->assertSee('─');
+});
+
 test('deleting an event also deletes its ticket types', function () {
     $ticketType = TicketType::factory()->create();
 

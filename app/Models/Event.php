@@ -59,6 +59,27 @@ class Event extends Model
     }
 
     /**
+     * 一覧に出す価格表示。最安の券種で「1,500円〜」「無料」、券種が無ければ「─」。
+     * withMin('ticketTypes', 'price') で読み込み済みならそれを使う。
+     */
+    public function lowestPriceLabel(): string
+    {
+        $lowestPrice = array_key_exists('ticket_types_min_price', $this->attributes)
+            ? $this->attributes['ticket_types_min_price']
+            : $this->ticketTypes()->min('price');
+
+        if ($lowestPrice === null) {
+            return '─';
+        }
+
+        if ((int) $lowestPrice === 0) {
+            return '無料';
+        }
+
+        return number_format((int) $lowestPrice).'円〜';
+    }
+
+    /**
      * ログイン中のユーザーが作ったイベントか。
      */
     public function isOwnedBy(?User $user): bool
