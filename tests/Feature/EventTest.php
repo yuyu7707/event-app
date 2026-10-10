@@ -305,3 +305,54 @@ test('duplicated event belongs to the user who duplicated it', function () {
         ->and($user->events()->count())->toBe(2)
         ->and($event->fresh()->user_id)->toBe($user->id);
 });
+
+// 検索
+
+test('event list can be filtered by title', function () {
+    Event::factory()->create(['title' => '朝焼けトレッキング', 'venue' => '岩手山']);
+    Event::factory()->create(['title' => '雪上ヨガ体験', 'venue' => '松川温泉']);
+
+    Livewire::test('pages::events.index')
+        ->set('search', 'トレッキング')
+        ->assertSee('朝焼けトレッキング')
+        ->assertDontSee('雪上ヨガ体験');
+});
+
+test('event list can be filtered by venue', function () {
+    Event::factory()->create(['title' => '朝焼けトレッキング', 'venue' => '岩手山']);
+    Event::factory()->create(['title' => '雪上ヨガ体験', 'venue' => '松川温泉']);
+
+    Livewire::test('pages::events.index')
+        ->set('search', '松川')
+        ->assertSee('雪上ヨガ体験')
+        ->assertDontSee('朝焼けトレッキング');
+});
+
+test('event list shows a message when nothing matches', function () {
+    Event::factory()->create(['title' => '朝焼けトレッキング']);
+
+    Livewire::test('pages::events.index')
+        ->set('search', '存在しない語')
+        ->assertSee('該当するイベントはありません。')
+        ->assertDontSee('朝焼けトレッキング');
+});
+
+test('event list shows all events when search is cleared', function () {
+    Event::factory()->create(['title' => '朝焼けトレッキング']);
+    Event::factory()->create(['title' => '雪上ヨガ体験']);
+
+    Livewire::test('pages::events.index')
+        ->set('search', 'ヨガ')
+        ->assertDontSee('朝焼けトレッキング')
+        ->set('search', '')
+        ->assertSee('朝焼けトレッキング')
+        ->assertSee('雪上ヨガ体験');
+});
+
+test('search treats wildcard characters literally', function () {
+    Event::factory()->create(['title' => '朝焼けトレッキング']);
+
+    Livewire::test('pages::events.index')
+        ->set('search', '%')
+        ->assertSee('該当するイベントはありません。');
+});
