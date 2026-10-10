@@ -220,3 +220,88 @@ test('deleting an event keeps other events', function () {
     $this->assertModelExists($other);
     expect($other->ticketTypes()->count())->toBe(1);
 });
+
+// 複製
+
+test('organizer can duplicate an event without ticket types', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $event = Event::factory()->for($user)->create([
+        'title' => '朝焼けトレッキング',
+        'starts_at' => '2030-05-01 06:00',
+        'ends_at' => '2030-05-01 10:00',
+    ]);
+    TicketType::factory()->for($event)->create();
+
+    $component = Livewire::test('pages::events.edit', ['event' => $event])
+        ->call('duplicate');
+
+    $copy = Event::where('id', '!=', $event->id)->sole();
+
+    $component->assertRedirect(route('events.edit', $copy));
+
+    expect($copy)
+        ->title->toBe('朝焼けトレッキング（複製）')
+        ->user_id->toBe($user->id)
+        ->description->toBe($event->description)
+        ->venue->toBe($event->venue)
+        ->starts_at->format('Y-m-d H:i')->toBe('2030-05-08 06:00')
+        ->ends_at->format('Y-m-d H:i')->toBe('2030-05-08 10:00')
+        ->and($copy->ticketTypes()->count())->toBe(0)
+        ->and($event->ticketTypes()->count())->toBe(1)
+        ->and(session('status'))->toBe('イベントを複製しました。');
+
+    expect($event->fresh())
+        ->starts_at->format('Y-m-d H:i')->toBe('2030-05-01 06:00')
+        ->ends_at->format('Y-m-d H:i')->toBe('2030-05-01 10:00');
+});
+
+test('duplicating a duplicated event does not repeat the suffix', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $event = Event::factory()->for($user)->create(['title' => '朝焼けトレッキング（複製）']);
+
+    Livewire::test('pages::events.edit', ['event' => $event])->call('duplicate');
+
+    expect(Event::where('id', '!=', $event->id)->sole()->title)->toBe('朝焼けトレッキング（複製）');
+});
+
+test('duplicated title stays within 100 characters', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $event = Event::factory()->for($user)->create(['title' => str_repeat('あ', 100)]);
+
+    Livewire::test('pages::events.edit', ['event' => $event])->call('duplicate');
+
+    $copy = Event::where('id', '!=', $event->id)->sole();
+
+    expect(mb_strlen($copy->title))->toBe(100)
+        ->and($copy->title)->toEndWith('（複製）');
+});
+
+test('other users cannot duplicate an event', function () {
+    $event = Event::factory()->create();
+    $this->actingAs($event->user);
+
+    $component = Livewire::test('pages::events.edit', ['event' => $event]);
+
+    $this->actingAs(User::factory()->create());
+
+    $component->call('duplicate')->assertForbidden();
+
+    expect(Event::count())->toBe(1);
+});
+
+test('duplicated event belongs to the user who duplicated it', function () {
+    $user = User::factory()->create();
+    $this->actingAs($user);
+    $event = Event::factory()->for($user)->create();
+
+    Livewire::test('pages::events.edit', ['event' => $event])->call('duplicate');
+
+    $copy = Event::where('id', '!=', $event->id)->sole();
+
+    expect($copy->isOwnedBy($user))->toBeTrue()
+        ->and($user->events()->count())->toBe(2)
+        ->and($event->fresh()->user_id)->toBe($user->id);
+});

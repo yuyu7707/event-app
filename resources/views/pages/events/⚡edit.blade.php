@@ -104,6 +104,29 @@ new #[Title('イベントを編集')] class extends Component {
         Flux::toast(variant: 'success', text: '券種を削除しました。');
     }
 
+    public function duplicate(): void
+    {
+        $this->authorize('update', $this->event);
+
+        $suffix = '（複製）';
+        $title = str_ends_with($this->event->title, $suffix)
+            ? $this->event->title
+            : mb_substr($this->event->title, 0, 100 - mb_strlen($suffix)).$suffix;
+
+        $copy = Event::create([
+            'user_id' => $this->event->user_id,
+            'title' => $title,
+            'description' => $this->event->description,
+            'venue' => $this->event->venue,
+            'starts_at' => $this->event->starts_at->copy()->addWeek(),
+            'ends_at' => $this->event->ends_at->copy()->addWeek(),
+        ]);
+
+        session()->flash('status', 'イベントを複製しました。');
+
+        $this->redirectRoute('events.edit', $copy, navigate: true);
+    }
+
     public function delete(): void
     {
         $this->authorize('update', $this->event);
@@ -119,6 +142,12 @@ new #[Title('イベントを編集')] class extends Component {
 
 <div class="mx-auto max-w-2xl space-y-6">
     <flux:heading size="xl">イベントを編集</flux:heading>
+
+    @if (session('status'))
+        <flux:callout variant="success" icon="check-circle">
+            <flux:callout.heading>{{ session('status') }}</flux:callout.heading>
+        </flux:callout>
+    @endif
 
     <form wire:submit="save" class="space-y-6">
         <flux:input wire:model="title" label="タイトル" />
@@ -138,6 +167,16 @@ new #[Title('イベントを編集')] class extends Component {
             </div>
         </div>
     </form>
+
+    <flux:separator />
+
+    <section class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <flux:heading size="lg">イベントを複製</flux:heading>
+            <flux:text>保存済みの内容で、開催日を1週間後にしたイベントを作ります。券種はコピーしません。</flux:text>
+        </div>
+        <flux:button wire:click="duplicate" wire:confirm="保存していない変更は複製されません。このイベントを複製しますか？" icon="document-duplicate">イベントを複製</flux:button>
+    </section>
 
     <flux:separator />
 
